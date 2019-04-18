@@ -1,13 +1,14 @@
 /*
  * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.common.util;
+
+import com.facebook.infer.annotation.Functional;
+import javax.annotation.Nullable;
 
 /**
  * Generic tri-state enum for boolean values that can also be unset.
@@ -19,6 +20,7 @@ public enum TriState {
   ;
 
   /** @return whether this value is set; that is, whether it is YES or NO. */
+  @Functional
   public boolean isSet() {
     return this != UNSET;
   }
@@ -35,10 +37,12 @@ public enum TriState {
    *       nullability should replace the {@link Boolean} with a {@link TriState}, anyway.
    * </ol>
    */
+  @Functional
   public static TriState valueOf(boolean bool) {
     return bool ? YES : NO;
   }
 
+  @Functional
   public static TriState valueOf(Boolean bool) {
     return bool != null ? valueOf(bool.booleanValue()) : TriState.UNSET;
   }
@@ -50,6 +54,7 @@ public enum TriState {
    *     {@code false} if {@code this} is {@link TriState#NO}
    * @throws IllegalStateException if {@code this} is {@link TriState#UNSET}.
    */
+  @Functional
   public boolean asBoolean() {
     switch (this) {
       case YES:
@@ -71,6 +76,7 @@ public enum TriState {
    *     {@code false} if {@code this} is {@link TriState#NO} or {@code defaultValue} if
    *     {@code this} is {@link TriState#UNSET}.
    */
+  @Functional
   public boolean asBoolean(boolean defaultValue) {
     switch (this) {
       case YES:
@@ -91,7 +97,8 @@ public enum TriState {
    *     {@link Boolean#FALSE} if {@code this} is {@link TriState#NO} or {@code null} if
    *     {@code this} is {@link TriState#UNSET}.
    */
-  public Boolean asBooleanObject() {
+  @Functional
+  public @Nullable Boolean asBooleanObject() {
     switch (this) {
       case YES:
         return Boolean.TRUE;
@@ -104,6 +111,7 @@ public enum TriState {
     }
   }
 
+  @Functional
   public int getDbValue() {
     switch (this) {
       case YES:
@@ -116,6 +124,7 @@ public enum TriState {
     }
   }
 
+  @Functional
   public static TriState fromDbValue(int value) {
     switch (value) {
       case 1:

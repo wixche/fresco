@@ -1,21 +1,25 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.imagepipeline.producers;
 
 import android.net.Uri;
-
+import com.facebook.common.internal.VisibleForTesting;
+import com.facebook.common.time.MonotonicClock;
+import com.facebook.common.time.RealtimeSinceBootClock;
+import com.facebook.common.util.UriUtil;
 import com.facebook.imagepipeline.image.EncodedImage;
-
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -23,60 +27,71 @@ import java.util.concurrent.Future;
 /**
  * Network fetcher that uses the simplest Android stack.
  *
- * <p> Apps requiring more sophisticated networking should implement their own
- * {@link NetworkFetcher}.
+ * <p>Apps requiring more sophisticated networking should implement their own {@link
+ * NetworkFetcher}.
  */
-public class HttpUrlConnectionNetworkFetcher extends BaseNetworkFetcher<FetchState> {
+public class HttpUrlConnectionNetworkFetcher
+    extends BaseNetworkFetcher<HttpUrlConnectionNetworkFetcher.HttpUrlConnectionNetworkFetchState> {
+
+  public static class HttpUrlConnectionNetworkFetchState extends FetchState {
+
+    private long submitTime;
+    private long responseTime;
+    private long fetchCompleteTime;
+
+    public HttpUrlConnectionNetworkFetchState(
+        Consumer<EncodedImage> consumer, ProducerContext producerContext) {
+      super(consumer, producerContext);
+    }
+  }
+
+  private static final String QUEUE_TIME = "queue_time";
+  private static final String FETCH_TIME = "fetch_time";
+  private static final String TOTAL_TIME = "total_time";
+  private static final String IMAGE_SIZE = "image_size";
 
   private static final int NUM_NETWORK_THREADS = 3;
+  private static final int MAX_REDIRECTS = 5;
+
+  public static final int HTTP_TEMPORARY_REDIRECT = 307;
+  public static final int HTTP_PERMANENT_REDIRECT = 308;
+
+  public static final int HTTP_DEFAULT_TIMEOUT = 30000;
+
+  private int mHttpConnectionTimeout;
 
   private final ExecutorService mExecutorService;
+  private final MonotonicClock mMonotonicClock;
 
   public HttpUrlConnectionNetworkFetcher() {
+    this(RealtimeSinceBootClock.get());
+  }
+
+  public HttpUrlConnectionNetworkFetcher(int httpConnectionTimeout) {
+    this(RealtimeSinceBootClock.get());
+    mHttpConnectionTimeout = httpConnectionTimeout;
+  }
+
+  @VisibleForTesting
+  HttpUrlConnectionNetworkFetcher(MonotonicClock monotonicClock) {
     mExecutorService = Executors.newFixedThreadPool(NUM_NETWORK_THREADS);
+    mMonotonicClock = monotonicClock;
   }
 
   @Override
-  public FetchState createFetchState(Consumer<EncodedImage> consumer, ProducerContext context) {
-    return new FetchState(consumer, context);
+  public HttpUrlConnectionNetworkFetchState createFetchState(
+      Consumer<EncodedImage> consumer, ProducerContext context) {
+    return new HttpUrlConnectionNetworkFetchState(consumer, context);
   }
 
   @Override
-  public void fetch(final FetchState fetchState, final Callback callback) {
+  public void fetch(final HttpUrlConnectionNetworkFetchState fetchState, final Callback callback) {
+    fetchState.submitTime = mMonotonicClock.now();
     final Future<?> future = mExecutorService.submit(
         new Runnable() {
           @Override
           public void run() {
-            HttpURLConnection connection = null;
-            Uri uri = fetchState.getUri();
-            String scheme = uri.getScheme();
-            String uriString = fetchState.getUri().toString();
-            while (true) {
-              String nextUriString;
-              String nextScheme;
-              InputStream is;
-              try {
-                URL url = new URL(uriString);
-                connection = (HttpURLConnection) url.openConnection();
-                nextUriString = connection.getHeaderField("Location");
-                nextScheme = (nextUriString == null) ? null : Uri.parse(nextUriString).getScheme();
-                if (nextUriString == null || nextScheme.equals(scheme)) {
-                  is = connection.getInputStream();
-                  callback.onResponse(is, -1);
-                  break;
-                }
-                uriString = nextUriString;
-                scheme = nextScheme;
-              } catch (Exception e) {
-                callback.onFailure(e);
-                break;
-              } finally {
-                if (connection != null) {
-                  connection.disconnect();
-                }
-              }
-          }
-
+            fetchSync(fetchState, callback);
           }
         });
     fetchState.getContext().addCallbacks(
@@ -88,5 +103,110 @@ public class HttpUrlConnectionNetworkFetcher extends BaseNetworkFetcher<FetchSta
             }
           }
         });
+  }
+
+  @VisibleForTesting
+  void fetchSync(HttpUrlConnectionNetworkFetchState fetchState, Callback callback) {
+    HttpURLConnection connection = null;
+    InputStream is = null;
+    try {
+      connection = downloadFrom(fetchState.getUri(), MAX_REDIRECTS);
+      fetchState.responseTime = mMonotonicClock.now();
+
+      if (connection != null) {
+        is = connection.getInputStream();
+        callback.onResponse(is, -1);
+      }
+    } catch (IOException e) {
+      callback.onFailure(e);
+    } finally {
+      if (is != null) {
+        try {
+          is.close();
+        } catch (IOException e) {
+          // do nothing and ignore the IOException here
+        }
+      }
+      if (connection != null) {
+        connection.disconnect();
+      }
+    }
+
+  }
+
+  private HttpURLConnection downloadFrom(Uri uri, int maxRedirects) throws IOException {
+    HttpURLConnection connection = openConnectionTo(uri);
+    connection.setConnectTimeout(mHttpConnectionTimeout);
+    int responseCode = connection.getResponseCode();
+
+    if (isHttpSuccess(responseCode)) {
+        return connection;
+
+    } else if (isHttpRedirect(responseCode)) {
+        String nextUriString = connection.getHeaderField("Location");
+        connection.disconnect();
+
+        Uri nextUri = (nextUriString == null) ? null : Uri.parse(nextUriString);
+        String originalScheme = uri.getScheme();
+
+        if (maxRedirects > 0 && nextUri != null && !nextUri.getScheme().equals(originalScheme)) {
+          return downloadFrom(nextUri, maxRedirects - 1);
+        } else {
+          String message = maxRedirects == 0
+              ? error("URL %s follows too many redirects", uri.toString())
+              : error("URL %s returned %d without a valid redirect", uri.toString(), responseCode);
+          throw new IOException(message);
+        }
+
+    } else {
+        connection.disconnect();
+        throw new IOException(String
+            .format("Image URL %s returned HTTP code %d", uri.toString(), responseCode));
+    }
+  }
+
+  @VisibleForTesting
+  static HttpURLConnection openConnectionTo(Uri uri) throws IOException {
+    URL url = UriUtil.uriToUrl(uri);
+    return (HttpURLConnection) url.openConnection();
+  }
+
+  @Override
+  public void onFetchCompletion(HttpUrlConnectionNetworkFetchState fetchState, int byteSize) {
+    fetchState.fetchCompleteTime = mMonotonicClock.now();
+  }
+
+  private static boolean isHttpSuccess(int responseCode) {
+    return (responseCode >= HttpURLConnection.HTTP_OK &&
+        responseCode < HttpURLConnection.HTTP_MULT_CHOICE);
+  }
+
+  private static boolean isHttpRedirect(int responseCode) {
+    switch (responseCode) {
+      case HttpURLConnection.HTTP_MULT_CHOICE:
+      case HttpURLConnection.HTTP_MOVED_PERM:
+      case HttpURLConnection.HTTP_MOVED_TEMP:
+      case HttpURLConnection.HTTP_SEE_OTHER:
+      case HTTP_TEMPORARY_REDIRECT:
+      case HTTP_PERMANENT_REDIRECT:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  private static String error(String format, Object... args) {
+    return String.format(Locale.getDefault(), format, args);
+  }
+
+  @Override
+  public Map<String, String> getExtraMap(
+      HttpUrlConnectionNetworkFetchState fetchState, int byteSize) {
+    Map<String, String> extraMap = new HashMap<>(4);
+    extraMap.put(QUEUE_TIME, Long.toString(fetchState.responseTime - fetchState.submitTime));
+    extraMap.put(FETCH_TIME, Long.toString(fetchState.fetchCompleteTime - fetchState.responseTime));
+    extraMap.put(TOTAL_TIME, Long.toString(fetchState.fetchCompleteTime - fetchState.submitTime));
+    extraMap.put(IMAGE_SIZE, Integer.toString(byteSize));
+    return extraMap;
   }
 }

@@ -1,25 +1,11 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.drawee.drawable;
-
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-
-import android.annotation.TargetApi;
-import android.graphics.Canvas;
-import android.graphics.Rect;
-import android.graphics.drawable.Drawable;
-
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
@@ -27,6 +13,20 @@ import static org.mockito.Matchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import android.annotation.TargetApi;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.ColorFilter;
+import android.graphics.Paint;
+import android.graphics.Rect;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 public class DrawableTestUtils {
 
@@ -40,12 +40,30 @@ public class DrawableTestUtils {
    * @return mock Drawable
    */
   public static Drawable mockDrawable() {
-    FakeDrawable drawable = mock(FakeDrawable.class);
+    return mockDrawable(FakeDrawable.class);
+  }
+
+  /**
+   * Creates a mock BitmapDrawable with some methods stubbed.
+   * @return mock Drawable
+   */
+  public static BitmapDrawable mockBitmapDrawable() {
+    return mockDrawable(BitmapDrawable.class);
+  }
+
+  /**
+   * Creates a mock Drawable with some methods stubbed.
+   * @return mock Drawable
+   */
+  public static <D extends Drawable> D mockDrawable(Class<D> drawableClassToMock) {
+    D drawable = mock(drawableClassToMock);
     when(drawable.mutate()).thenReturn(drawable);
     stubGetAndSetBounds(drawable);
     stubGetAndSetCallback(drawable);
     stubSetVisibilityCallback(drawable);
     stubSetAlpha(drawable);
+    stubGetPaint(drawable);
+    stubGetBitmap(drawable);
     return drawable;
   }
 
@@ -165,5 +183,39 @@ public class DrawableTestUtils {
             return null;
           }
         }).when(drawable).setAlpha(anyInt());
+  }
+
+  /**
+   * Stubs getPaint for BitmapDrawables.
+   * @param drawable drawable to stub methods of
+   */
+  public static void stubGetPaint(Drawable drawable) {
+    if (!(drawable instanceof BitmapDrawable)) {
+      return;
+    }
+    BitmapDrawable bitmapDrawable = (BitmapDrawable) drawable;
+    final Paint paint = new Paint();
+    when(bitmapDrawable.getPaint()).thenReturn(paint);
+    doAnswer(
+        new Answer() {
+          @Override
+          public Object answer(InvocationOnMock invocation) throws Throwable {
+            paint.setColorFilter((ColorFilter) invocation.getArguments()[0]);
+            return null;
+          }
+        }).when(bitmapDrawable).setColorFilter(any(ColorFilter.class));
+  }
+
+  /**
+   * Stubs getBitmap for BitmapDrawables.
+   * @param drawable drawable to stub methods of
+   */
+  public static void stubGetBitmap(Drawable drawable) {
+    if (!(drawable instanceof BitmapDrawable)) {
+      return;
+    }
+    BitmapDrawable bitmapDrawable = (BitmapDrawable) drawable;
+    final Bitmap bitmap = mock(Bitmap.class);
+    when(bitmapDrawable.getBitmap()).thenReturn(bitmap);
   }
 }

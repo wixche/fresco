@@ -1,10 +1,8 @@
 /*
  * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.datasource;
@@ -39,10 +37,15 @@ public abstract class BaseDataSubscriber<T> implements DataSubscriber<T> {
 
   @Override
   public void onNewResult(DataSource<T> dataSource) {
+    // isFinished() should be checked before calling onNewResultImpl(), otherwise
+    // there would be a race condition: the final data source result might be ready before
+    // we call isFinished() here, which would lead to the loss of the final result
+    // (because of an early dataSource.close() call).
+    final boolean shouldClose = dataSource.isFinished();
     try {
       onNewResultImpl(dataSource);
     } finally {
-      if (dataSource.isFinished()) {
+      if (shouldClose) {
         dataSource.close();
       }
     }

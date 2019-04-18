@@ -1,15 +1,11 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.drawee.view;
-
-import javax.annotation.Nullable;
 
 import android.annotation.TargetApi;
 import android.content.Context;
@@ -20,11 +16,13 @@ import android.net.Uri;
 import android.os.Build;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
+import android.view.View;
 import android.widget.ImageView;
-
 import com.facebook.common.internal.Objects;
-import com.facebook.drawee.interfaces.DraweeHierarchy;
 import com.facebook.drawee.interfaces.DraweeController;
+import com.facebook.drawee.interfaces.DraweeHierarchy;
+import com.facebook.imagepipeline.systrace.FrescoSystrace;
+import javax.annotation.Nullable;
 
 /**
  * View that displays a {@link DraweeHierarchy}.
@@ -39,12 +37,22 @@ import com.facebook.drawee.interfaces.DraweeController;
  * support ImageView's setImageXxx, setScaleType and similar methods. Extending ImageView is a short
  * term solution in order to inherit some of its implementation (padding calculations, etc.).
  * This class is likely to be converted to extend View directly in the future, so avoid using
- * ImageView's methods and properties (T5856175).
+ * ImageView's methods and properties.
  */
 public class DraweeView<DH extends DraweeHierarchy> extends ImageView {
 
+  private final AspectRatioMeasure.Spec mMeasureSpec = new AspectRatioMeasure.Spec();
+  private float mAspectRatio = 0;
   private DraweeHolder<DH> mDraweeHolder;
   private boolean mInitialised = false;
+  private boolean mLegacyVisibilityHandlingEnabled = false;
+
+  private static boolean sGlobalLegacyVisibilityHandlingEnabled = false;
+
+  public static void setGlobalLegacyVisibilityHandlingEnabled(
+      boolean legacyVisibilityHandlingEnabled) {
+    sGlobalLegacyVisibilityHandlingEnabled = legacyVisibilityHandlingEnabled;
+  }
 
   public DraweeView(Context context) {
     super(context);
@@ -69,17 +77,31 @@ public class DraweeView<DH extends DraweeHierarchy> extends ImageView {
 
   /** This method is idempotent so it only has effect the first time it's called */
   private void init(Context context) {
-    if (mInitialised) {
-      return;
-    }
-    mInitialised = true;
-    mDraweeHolder = DraweeHolder.create(null, context);
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-      ColorStateList imageTintList = getImageTintList();
-      if (imageTintList == null) {
+    try {
+      if (FrescoSystrace.isTracing()) {
+        FrescoSystrace.beginSection("DraweeView#init");
+      }
+      if (mInitialised) {
         return;
       }
-      setColorFilter(imageTintList.getDefaultColor());
+      mInitialised = true;
+      mDraweeHolder = DraweeHolder.create(null, context);
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+        ColorStateList imageTintList = getImageTintList();
+        if (imageTintList == null) {
+          return;
+        }
+        setColorFilter(imageTintList.getDefaultColor());
+      }
+      // In Android N and above, visibility handling for Drawables has been changed, which breaks
+      // activity transitions with DraweeViews.
+      mLegacyVisibilityHandlingEnabled =
+          sGlobalLegacyVisibilityHandlingEnabled
+              && context.getApplicationInfo().targetSdkVersion >= 24; // Build.VERSION_CODES.N
+    } finally {
+      if (FrescoSystrace.isTracing()) {
+        FrescoSystrace.endSection();
+      }
     }
   }
 
@@ -123,25 +145,57 @@ public class DraweeView<DH extends DraweeHierarchy> extends ImageView {
   @Override
   protected void onAttachedToWindow() {
     super.onAttachedToWindow();
-    mDraweeHolder.onAttach();
+    maybeOverrideVisibilityHandling();
+    onAttach();
   }
 
   @Override
   protected void onDetachedFromWindow() {
     super.onDetachedFromWindow();
-    mDraweeHolder.onDetach();
+    maybeOverrideVisibilityHandling();
+    onDetach();
   }
 
   @Override
   public void onStartTemporaryDetach() {
     super.onStartTemporaryDetach();
-    mDraweeHolder.onDetach();
+    maybeOverrideVisibilityHandling();
+    onDetach();
   }
 
   @Override
   public void onFinishTemporaryDetach() {
     super.onFinishTemporaryDetach();
+    maybeOverrideVisibilityHandling();
+    onAttach();
+  }
+
+  /** Called by the system to attach. Subclasses may override. */
+  protected void onAttach() {
+    doAttach();
+  }
+
+  /**  Called by the system to detach. Subclasses may override. */
+  protected void onDetach() {
+    doDetach();
+  }
+
+  /**
+   * Does the actual work of attaching.
+   *
+   * Non-test subclasses should NOT override. Use onAttach for custom code.
+   */
+  protected void doAttach() {
     mDraweeHolder.onAttach();
+  }
+
+  /**
+   * Does the actual work of detaching.
+   *
+   * Non-test subclasses should NOT override. Use onDetach for custom code.
+   */
+  protected void doDetach() {
+    mDraweeHolder.onDetach();
   }
 
   @Override
@@ -198,6 +252,58 @@ public class DraweeView<DH extends DraweeHierarchy> extends ImageView {
     init(getContext());
     mDraweeHolder.setController(null);
     super.setImageURI(uri);
+  }
+
+  /**
+   * Sets the desired aspect ratio (w/h).
+   */
+  public void setAspectRatio(float aspectRatio) {
+    if (aspectRatio == mAspectRatio) {
+      return;
+    }
+    mAspectRatio = aspectRatio;
+    requestLayout();
+  }
+
+  /**
+   * Gets the desired aspect ratio (w/h).
+   */
+  public float getAspectRatio() {
+    return mAspectRatio;
+  }
+
+  public void setLegacyVisibilityHandlingEnabled(boolean legacyVisibilityHandlingEnabled) {
+    mLegacyVisibilityHandlingEnabled = legacyVisibilityHandlingEnabled;
+  }
+
+  @Override
+  protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+    mMeasureSpec.width = widthMeasureSpec;
+    mMeasureSpec.height = heightMeasureSpec;
+    AspectRatioMeasure.updateMeasureSpec(
+        mMeasureSpec,
+        mAspectRatio,
+        getLayoutParams(),
+        getPaddingLeft() + getPaddingRight(),
+        getPaddingTop() + getPaddingBottom());
+    super.onMeasure(mMeasureSpec.width, mMeasureSpec.height);
+  }
+
+  @Override
+  protected void onVisibilityChanged(
+      View changedView,
+      int visibility) {
+    super.onVisibilityChanged(changedView, visibility);
+    maybeOverrideVisibilityHandling();
+  }
+
+  private void maybeOverrideVisibilityHandling() {
+    if (mLegacyVisibilityHandlingEnabled)  {
+      Drawable drawable = getDrawable();
+      if (drawable != null) {
+        drawable.setVisible(getVisibility() == VISIBLE, false);
+      }
+    }
   }
 
   @Override

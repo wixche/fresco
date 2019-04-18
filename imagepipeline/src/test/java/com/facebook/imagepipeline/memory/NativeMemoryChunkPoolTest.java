@@ -1,29 +1,24 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
-
 package com.facebook.imagepipeline.memory;
 
 import android.util.SparseIntArray;
-
 import com.facebook.imagepipeline.testing.FakeNativeMemoryChunk;
 import com.facebook.imagepipeline.testing.FakeNativeMemoryChunkPool;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
 
-/**
- * Tests for {@link NativeMemoryChunkPool}
- */
+/** Tests for {@link NativeMemoryChunkPool} */
 @RunWith(RobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class NativeMemoryChunkPoolTest extends TestUsingNativeMemoryChunk {
   private NativeMemoryChunkPool mPool;
 
@@ -39,7 +34,7 @@ public class NativeMemoryChunkPoolTest extends TestUsingNativeMemoryChunk {
 
   // Test out the alloc method
   @Test
-  public void testAlloc() throws Exception {
+  public void testAlloc() {
     NativeMemoryChunk c = mPool.alloc(1);
     Assert.assertNotNull(c);
     Assert.assertEquals(1, c.getSize());
@@ -49,7 +44,7 @@ public class NativeMemoryChunkPoolTest extends TestUsingNativeMemoryChunk {
   }
 
   @Test
-  public void testFree() throws Exception {
+  public void testFree() {
     NativeMemoryChunk c = mPool.alloc(1);
     Assert.assertFalse(c.isClosed());
     mPool.free(c);
@@ -60,7 +55,7 @@ public class NativeMemoryChunkPoolTest extends TestUsingNativeMemoryChunk {
 
   // tests out the getBucketedSize method
   @Test
-  public void testGetBucketedSize() throws Exception {
+  public void testGetBucketedSize() {
     Assert.assertEquals(32, mPool.getBucketedSize(1));
     Assert.assertEquals(32, mPool.getBucketedSize(32));
     Assert.assertEquals(64, mPool.getBucketedSize(33));
@@ -83,7 +78,7 @@ public class NativeMemoryChunkPoolTest extends TestUsingNativeMemoryChunk {
 
   // tests out the getBucketedSizeForValue method
   @Test
-  public void testGetBucketedSizeForValue() throws Exception {
+  public void testGetBucketedSizeForValue() {
     Assert.assertEquals(
         32,
         mPool.getBucketedSizeForValue(new FakeNativeMemoryChunk(32)));
@@ -107,7 +102,7 @@ public class NativeMemoryChunkPoolTest extends TestUsingNativeMemoryChunk {
   }
 
   @Test
-  public void testGetSizeInBytes() throws Exception {
+  public void testGetSizeInBytes() {
     Assert.assertEquals(1, mPool.getSizeInBytes(1));
     Assert.assertEquals(32, mPool.getSizeInBytes(32));
     Assert.assertEquals(33, mPool.getSizeInBytes(33));
@@ -116,8 +111,8 @@ public class NativeMemoryChunkPoolTest extends TestUsingNativeMemoryChunk {
   }
 
   @Test
-  public void testIsReusable() throws Exception {
-    NativeMemoryChunk chunk = mPool.get(1);
+  public void testIsReusable() {
+    MemoryChunk chunk = mPool.get(1);
     Assert.assertTrue(mPool.isReusable(chunk));
     chunk.close();
     Assert.assertFalse(mPool.isReusable(chunk));

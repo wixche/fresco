@@ -1,24 +1,14 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.drawee.controller;
 
-import javax.annotation.Nullable;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
-
 import android.content.Context;
 import android.graphics.drawable.Animatable;
-
 import com.facebook.common.internal.Objects;
 import com.facebook.common.internal.Preconditions;
 import com.facebook.common.internal.Supplier;
@@ -26,10 +16,16 @@ import com.facebook.datasource.DataSource;
 import com.facebook.datasource.DataSources;
 import com.facebook.datasource.FirstAvailableDataSourceSupplier;
 import com.facebook.datasource.IncreasingQualityDataSourceSupplier;
-import com.facebook.drawee.components.RetryManager;
 import com.facebook.drawee.gestures.GestureDetector;
 import com.facebook.drawee.interfaces.DraweeController;
 import com.facebook.drawee.interfaces.SimpleDraweeControllerBuilder;
+import com.facebook.imagepipeline.systrace.FrescoSystrace;
+import com.facebook.infer.annotation.ReturnsOwnership;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import javax.annotation.Nullable;
 
 /**
  * Base implementation for Drawee controller builders.
@@ -66,9 +62,11 @@ public abstract class AbstractDraweeControllerBuilder <
   private boolean mTryCacheOnlyFirst;
   private @Nullable Supplier<DataSource<IMAGE>> mDataSourceSupplier;
   private @Nullable ControllerListener<? super INFO> mControllerListener;
+  private @Nullable ControllerViewportVisibilityListener mControllerViewportVisibilityListener;
   private boolean mTapToRetryEnabled;
   private boolean mAutoPlayAnimations;
   private boolean mRetainImageOnFailure;
+  private String mContentDescription;
   // old controller to reuse
   private @Nullable DraweeController mOldController;
 
@@ -90,9 +88,11 @@ public abstract class AbstractDraweeControllerBuilder <
     mMultiImageRequests = null;
     mTryCacheOnlyFirst = true;
     mControllerListener = null;
+    mControllerViewportVisibilityListener = null;
     mTapToRetryEnabled = false;
     mAutoPlayAnimations = false;
     mOldController = null;
+    mContentDescription = null;
   }
 
   /** Resets this builder to its initial values making it reusable. */
@@ -158,6 +158,9 @@ public abstract class AbstractDraweeControllerBuilder <
   public BUILDER setFirstAvailableImageRequests(
       REQUEST[] firstAvailableImageRequests,
       boolean tryCacheOnlyFirst) {
+    Preconditions.checkArgument(
+        firstAvailableImageRequests == null || firstAvailableImageRequests.length > 0,
+        "No requests specified!");
     mMultiImageRequests = firstAvailableImageRequests;
     mTryCacheOnlyFirst = tryCacheOnlyFirst;
     return getThis();
@@ -178,8 +181,9 @@ public abstract class AbstractDraweeControllerBuilder <
    *
    *  <p/> Note: This is mutually exclusive with other image request setters.
    */
-  public void setDataSourceSupplier(@Nullable Supplier<DataSource<IMAGE>> dataSourceSupplier) {
+  public BUILDER setDataSourceSupplier(@Nullable Supplier<DataSource<IMAGE>> dataSourceSupplier) {
     mDataSourceSupplier = dataSourceSupplier;
+    return getThis();
   }
 
   /**
@@ -227,7 +231,8 @@ public abstract class AbstractDraweeControllerBuilder <
   }
 
   /** Sets the controller listener. */
-  public BUILDER setControllerListener(ControllerListener<? super INFO> controllerListener) {
+  public BUILDER setControllerListener(
+      @Nullable ControllerListener<? super INFO> controllerListener) {
     mControllerListener = controllerListener;
     return getThis();
   }
@@ -236,6 +241,31 @@ public abstract class AbstractDraweeControllerBuilder <
   @Nullable
   public ControllerListener<? super INFO> getControllerListener() {
     return mControllerListener;
+  }
+
+  /** Sets the controller viewport visibility listener. */
+  public BUILDER setControllerViewportVisibilityListener(
+      @Nullable ControllerViewportVisibilityListener controllerViewportVisibilityListener) {
+    mControllerViewportVisibilityListener = controllerViewportVisibilityListener;
+    return getThis();
+  }
+
+  /** Gets the controller viewport visibility listener. */
+  @Nullable
+  public ControllerViewportVisibilityListener getControllerViewportVisibilityListener() {
+    return mControllerViewportVisibilityListener;
+  }
+
+  /** Sets the accessibility content description. */
+  public BUILDER setContentDescription(String contentDescription) {
+    mContentDescription = contentDescription;
+    return getThis();
+  }
+
+  /** Gets the accessibility content description. */
+  @Nullable
+  public String getContentDescription() {
+    return mContentDescription;
   }
 
   /** Sets the old controller to be reused if possible. */
@@ -278,10 +308,18 @@ public abstract class AbstractDraweeControllerBuilder <
 
   /** Builds a regular controller. */
   protected AbstractDraweeController buildController() {
+    if (FrescoSystrace.isTracing()) {
+      FrescoSystrace.beginSection("AbstractDraweeControllerBuilder#buildController");
+    }
     AbstractDraweeController controller = obtainController();
     controller.setRetainImageOnFailure(getRetainImageOnFailure());
+    controller.setContentDescription(getContentDescription());
+    controller.setControllerViewportVisibilityListener(getControllerViewportVisibilityListener());
     maybeBuildAndSetRetryManager(controller);
     maybeAttachListeners(controller);
+    if (FrescoSystrace.isTracing()) {
+      FrescoSystrace.endSection();
+    }
     return controller;
   }
 
@@ -291,7 +329,8 @@ public abstract class AbstractDraweeControllerBuilder <
   }
 
   /** Gets the top-level data source supplier to be used by a controller. */
-  protected Supplier<DataSource<IMAGE>> obtainDataSourceSupplier() {
+  protected Supplier<DataSource<IMAGE>> obtainDataSourceSupplier(
+      final DraweeController controller, final String controllerId) {
     if (mDataSourceSupplier != null) {
       return mDataSourceSupplier;
     }
@@ -300,17 +339,19 @@ public abstract class AbstractDraweeControllerBuilder <
 
     // final image supplier;
     if (mImageRequest != null) {
-      supplier = getDataSourceSupplierForRequest(mImageRequest);
+      supplier = getDataSourceSupplierForRequest(controller, controllerId, mImageRequest);
     } else if (mMultiImageRequests != null) {
-      supplier = getFirstAvailableDataSourceSupplier(mMultiImageRequests, mTryCacheOnlyFirst);
+      supplier =
+          getFirstAvailableDataSourceSupplier(
+              controller, controllerId, mMultiImageRequests, mTryCacheOnlyFirst);
     }
 
     // increasing-quality supplier; highest-quality supplier goes first
     if (supplier != null && mLowResImageRequest != null) {
       List<Supplier<DataSource<IMAGE>>> suppliers = new ArrayList<>(2);
       suppliers.add(supplier);
-      suppliers.add(getDataSourceSupplierForRequest(mLowResImageRequest));
-      supplier = IncreasingQualityDataSourceSupplier.create(suppliers);
+      suppliers.add(getDataSourceSupplierForRequest(controller, controllerId, mLowResImageRequest));
+      supplier = IncreasingQualityDataSourceSupplier.create(suppliers, false);
     }
 
     // no image requests; use null data source supplier
@@ -322,41 +363,49 @@ public abstract class AbstractDraweeControllerBuilder <
   }
 
   protected Supplier<DataSource<IMAGE>> getFirstAvailableDataSourceSupplier(
+      final DraweeController controller,
+      String controllerId,
       REQUEST[] imageRequests,
       boolean tryBitmapCacheOnlyFirst) {
     List<Supplier<DataSource<IMAGE>>> suppliers = new ArrayList<>(imageRequests.length * 2);
     if (tryBitmapCacheOnlyFirst) {
       // we first add bitmap-cache-only suppliers, then the full-fetch ones
       for (int i = 0; i < imageRequests.length; i++) {
-        suppliers.add(getDataSourceSupplierForRequest(imageRequests[i], /*bitmapCacheOnly */ true));
+        suppliers.add(
+            getDataSourceSupplierForRequest(
+                controller, controllerId, imageRequests[i], CacheLevel.BITMAP_MEMORY_CACHE));
       }
     }
     for (int i = 0; i < imageRequests.length; i++) {
-      suppliers.add(getDataSourceSupplierForRequest(imageRequests[i]));
+      suppliers.add(getDataSourceSupplierForRequest(controller, controllerId, imageRequests[i]));
     }
     return FirstAvailableDataSourceSupplier.create(suppliers);
   }
 
   /** Creates a data source supplier for the given image request. */
-  protected Supplier<DataSource<IMAGE>> getDataSourceSupplierForRequest(REQUEST imageRequest) {
-    return getDataSourceSupplierForRequest(imageRequest, /* bitmapCacheOnly */ false);
+  protected Supplier<DataSource<IMAGE>> getDataSourceSupplierForRequest(
+      final DraweeController controller, String controllerId, REQUEST imageRequest) {
+    return getDataSourceSupplierForRequest(
+        controller, controllerId, imageRequest, CacheLevel.FULL_FETCH);
   }
 
   /** Creates a data source supplier for the given image request. */
   protected Supplier<DataSource<IMAGE>> getDataSourceSupplierForRequest(
+      final DraweeController controller,
+      final String controllerId,
       final REQUEST imageRequest,
-      final boolean bitmapCacheOnly) {
+      final CacheLevel cacheLevel) {
     final Object callerContext = getCallerContext();
     return new Supplier<DataSource<IMAGE>>() {
       @Override
       public DataSource<IMAGE> get() {
-        return getDataSourceForRequest(imageRequest, callerContext, bitmapCacheOnly);
+        return getDataSourceForRequest(
+            controller, controllerId, imageRequest, callerContext, cacheLevel);
       }
+
       @Override
       public String toString() {
-        return Objects.toStringHelper(this)
-            .add("request", imageRequest.toString())
-            .toString();
+        return Objects.toStringHelper(this).add("request", imageRequest.toString()).toString();
       }
     };
   }
@@ -381,12 +430,7 @@ public abstract class AbstractDraweeControllerBuilder <
     if (!mTapToRetryEnabled) {
       return;
     }
-    RetryManager retryManager = controller.getRetryManager();
-    if (retryManager == null) {
-      retryManager = new RetryManager();
-      controller.setRetryManager(retryManager);
-    }
-    retryManager.setTapToRetryEnabled(mTapToRetryEnabled);
+    controller.getRetryManager().setTapToRetryEnabled(mTapToRetryEnabled);
     maybeBuildAndSetGestureDetector(controller);
   }
 
@@ -405,24 +449,38 @@ public abstract class AbstractDraweeControllerBuilder <
   }
 
   /** Concrete builder classes should override this method to return a new controller. */
-  protected abstract AbstractDraweeController obtainController();
+  @ReturnsOwnership protected abstract AbstractDraweeController obtainController();
 
   /**
    * Concrete builder classes should override this method to return a data source for the request.
    *
-   * <p/>IMPORTANT: Do NOT ever call this method directly. This method is only to be called from
-   * a supplier created in {#code getDataSourceSupplierForRequest(REQUEST, boolean)}.
+   * <p>IMPORTANT: Do NOT ever call this method directly. This method is only to be called from a
+   * supplier created in {#code getDataSourceSupplierForRequest(REQUEST, boolean)}.
    *
-   * <p/>IMPORTANT: Make sure that you do NOT use any non-final field from this method, as the field
+   * <p>IMPORTANT: Make sure that you do NOT use any non-final field from this method, as the field
    * may change if the instance of this builder gets reused. If any such field is required, override
    * {#code getDataSourceSupplierForRequest(REQUEST, boolean)}, and store the field in a final
    * variable (same as it is done for callerContext).
    */
   protected abstract DataSource<IMAGE> getDataSourceForRequest(
+      final DraweeController controller,
+      final String controllerId,
       final REQUEST imageRequest,
       final Object callerContext,
-      final boolean bitmapCacheOnly);
+      final CacheLevel cacheLevel);
 
-  /** Concrete builder classes should override this method to return {#code this}. */
-  protected abstract BUILDER getThis();
+  protected final BUILDER getThis() {
+    return (BUILDER) this;
+  }
+
+  public enum CacheLevel {
+    /* Fetch (from the network or local storage) */
+    FULL_FETCH,
+
+    /* Disk caching */
+    DISK_CACHE,
+
+    /* Bitmap caching */
+    BITMAP_MEMORY_CACHE;
+  }
 }

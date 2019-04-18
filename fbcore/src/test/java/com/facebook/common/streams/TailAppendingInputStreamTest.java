@@ -1,28 +1,24 @@
 /*
  * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.common.streams;
 
+import static org.junit.Assert.*;
+
+import com.facebook.common.internal.ByteStreams;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Random;
-
-import org.robolectric.RobolectricTestRunner;
-
-import com.google.common.io.ByteStreams;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
-import static org.junit.Assert.*;
+import org.robolectric.RobolectricTestRunner;
 
 @RunWith(RobolectricTestRunner.class)
 public class TailAppendingInputStreamTest {
@@ -71,7 +67,7 @@ public class TailAppendingInputStreamTest {
 
   @Test
   public void testDoesReadMultipleBytes() throws Exception {
-    ByteStreams.readFully(mTailAppendingInputStream, mOutputBuffer);
+    ByteStreams.readFully(mTailAppendingInputStream, mOutputBuffer, 0, OUTPUT_LENGTH);
     assertArrayEquals(mBytes, Arrays.copyOfRange(mOutputBuffer, 0, BYTES_LENGTH));
     assertArrayEquals(mTail, Arrays.copyOfRange(mOutputBuffer, BYTES_LENGTH, OUTPUT_LENGTH));
   }

@@ -1,18 +1,15 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.drawee.drawable;
 
-import javax.annotation.Nullable;
-
 import android.graphics.PixelFormat;
 import android.graphics.drawable.Drawable;
+import javax.annotation.Nullable;
 
 /**
  * Helper class containing functionality commonly used by drawables.
@@ -20,11 +17,26 @@ import android.graphics.drawable.Drawable;
 public class DrawableUtils {
 
   /**
+   * Clones the specified drawable.
+   * @param drawable the drawable to clone.
+   * @return a clone of the drawable or null if the drawable cannot be cloned.
+   */
+  public static @Nullable Drawable cloneDrawable(Drawable drawable) {
+    if (drawable instanceof CloneableDrawable) {
+      return ((CloneableDrawable) drawable).cloneDrawable();
+    }
+
+    Drawable.ConstantState constantState = drawable.getConstantState();
+    return constantState != null ? constantState.newDrawable() : null;
+  }
+
+  /**
    * Copies various properties from one drawable to the other.
+   *
    * @param to drawable to copy properties to
    * @param from drawable to copy properties from
    */
-  public static void copyProperties(Drawable to, Drawable from) {
+  public static void copyProperties(@Nullable Drawable to, @Nullable Drawable from) {
     if (from == null || to == null || to == from) {
       return;
     }
@@ -38,10 +50,12 @@ public class DrawableUtils {
 
   /**
    * Sets various paint properties on the drawable
+   *
    * @param drawable Drawable on which to set the properties
    * @param properties wrapper around mValue values to set on the drawable
    */
-  public static void setDrawableProperties(Drawable drawable, DrawableProperties properties) {
+  public static void setDrawableProperties(
+      @Nullable Drawable drawable, @Nullable DrawableProperties properties) {
     if (drawable == null || properties == null) {
       return;
     }
@@ -50,12 +64,13 @@ public class DrawableUtils {
 
   /**
    * Sets callback to the drawable.
+   *
    * @param drawable drawable to set callbacks to
    * @param callback standard Android Drawable.Callback
    * @param transformCallback TransformCallback used by TransformAwareDrawables
    */
   public static void setCallbacks(
-      Drawable drawable,
+      @Nullable Drawable drawable,
       @Nullable Drawable.Callback callback,
       @Nullable TransformCallback transformCallback) {
     if (drawable != null) {

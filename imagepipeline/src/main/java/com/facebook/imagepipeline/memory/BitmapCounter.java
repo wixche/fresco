@@ -1,22 +1,14 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.imagepipeline.memory;
 
-import javax.annotation.concurrent.GuardedBy;
-
-import java.util.ArrayList;
-import java.util.List;
-
 import android.graphics.Bitmap;
 import android.os.Build;
-
 import com.facebook.common.internal.Preconditions;
 import com.facebook.common.internal.Throwables;
 import com.facebook.common.references.CloseableReference;
@@ -24,6 +16,9 @@ import com.facebook.common.references.ResourceReleaser;
 import com.facebook.imagepipeline.common.TooManyBitmapsException;
 import com.facebook.imagepipeline.nativecode.Bitmaps;
 import com.facebook.imageutils.BitmapUtil;
+import java.util.ArrayList;
+import java.util.List;
+import javax.annotation.concurrent.GuardedBy;
 
 /**
  * Counts bitmaps - keeps track of both, count and total size in bytes.
@@ -105,48 +100,15 @@ public class BitmapCounter {
         return mSize;
       }
 
-  public ResourceReleaser<Bitmap> getReleaser() {
-    return mUnpooledBitmapsReleaser;
+  public synchronized int getMaxCount() {
+    return mMaxCount;
   }
 
-  /**
-   * Associates bitmaps with the bitmap counter. <p/> <p>If this method throws
-   * TooManyBitmapsException, the code will have called {@link Bitmap#recycle} on the
-   * bitmaps.</p>
-   *
-   * @param bitmaps the bitmaps to associate
-   * @return the references to the bitmaps that are now tied to the bitmap pool
-   * @throws TooManyBitmapsException if the pool is full
-   */
-  public List<CloseableReference<Bitmap>> associateBitmapsWithBitmapCounter(
-      final List<Bitmap> bitmaps) {
-    int countedBitmaps = 0;
-    try {
-      for (; countedBitmaps < bitmaps.size(); ++countedBitmaps) {
-        final Bitmap bitmap = bitmaps.get(countedBitmaps);
-        // 'Pin' the bytes of the purgeable bitmap, so it is now not purgeable
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-          Bitmaps.pinBitmap(bitmap);
-        }
-        if (!increase(bitmap)) {
-          throw new TooManyBitmapsException();
-        }
-      }
-      List<CloseableReference<Bitmap>> ret = new ArrayList<>();
-      for (Bitmap bitmap : bitmaps) {
-        ret.add(CloseableReference.of(bitmap, mUnpooledBitmapsReleaser));
-      }
-      return ret;
-    } catch (Exception exception) {
-      if (bitmaps != null) {
-        for (Bitmap bitmap : bitmaps) {
-          if (countedBitmaps-- > 0) {
-            decrease(bitmap);
-          }
-          bitmap.recycle();
-        }
-      }
-      throw Throwables.propagate(exception);
-    }
+  public synchronized int getMaxSize() {
+    return mMaxSize;
+  }
+
+  public ResourceReleaser<Bitmap> getReleaser() {
+    return mUnpooledBitmapsReleaser;
   }
 }

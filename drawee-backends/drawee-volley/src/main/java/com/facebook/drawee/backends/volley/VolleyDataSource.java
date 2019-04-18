@@ -1,39 +1,39 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.drawee.backends.volley;
 
 import android.graphics.Bitmap;
 import android.net.Uri;
-
+import android.os.Handler;
+import android.os.Looper;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.ImageLoader;
-import com.facebook.datasource.DataSource;
 import com.facebook.datasource.AbstractDataSource;
+import com.facebook.datasource.DataSource;
+import com.facebook.drawee.controller.AbstractDraweeControllerBuilder;
 
 /**
  * {@link DataSource} that wraps Volley {@link ImageLoader}.
  */
 public class VolleyDataSource extends AbstractDataSource<Bitmap> {
+  private final Handler mHandler = new Handler(Looper.getMainLooper());
   private ImageLoader.ImageContainer mImageContainer;
 
   public VolleyDataSource(
       final ImageLoader imageLoader,
       final Uri imageRequest,
-      final boolean bitmapCacheOnly) {
+      final AbstractDraweeControllerBuilder.CacheLevel cacheLevel) {
 
-    // TODO: add VolleyImageRequest {uri, resizeOptions, bitmapCacheOnly, ...}
     String uriString = imageRequest.toString();
     int maxWidth = 0;
     int maxHeight = 0;
 
-    if (bitmapCacheOnly) {
+    if (cacheLevel != AbstractDraweeControllerBuilder.CacheLevel.FULL_FETCH) {
       if (!imageLoader.isCached(uriString, maxWidth, maxHeight)) {
         mImageContainer = null;
         setFailure(new NullPointerException("Image not found in bitmap-cache."));
@@ -62,7 +62,15 @@ public class VolleyDataSource extends AbstractDataSource<Bitmap> {
   @Override
   public boolean close() {
     if (mImageContainer != null) {
-      mImageContainer.cancelRequest();
+      // Prevent ConcurrentModificationException in Volley
+      mHandler.post(new Runnable() {
+        @Override
+        public void run() {
+          if (mImageContainer != null) {
+            mImageContainer.cancelRequest();
+          }
+        }
+      });
     }
     return super.close();
   }

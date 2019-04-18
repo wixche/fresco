@@ -1,10 +1,8 @@
 /*
  * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.common.logging;
@@ -443,13 +441,13 @@ public class FLog {
 
   public static void wtf(String tag, String msg) {
     if (sHandler.isLoggable(ERROR)) {
-      sHandler.e(tag, msg);
+      sHandler.wtf(tag, msg);
     }
   }
 
   public static void wtf(Class <?> cls, String msg) {
     if (sHandler.isLoggable(ERROR)) {
-      sHandler.e(getTag(cls), msg);
+      sHandler.wtf(getTag(cls), msg);
     }
   }
 

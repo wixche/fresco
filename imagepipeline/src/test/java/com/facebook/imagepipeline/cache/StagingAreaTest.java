@@ -1,28 +1,26 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
-
 package com.facebook.imagepipeline.cache;
-
-import com.facebook.cache.common.CacheKey;
-import com.facebook.cache.common.SimpleCacheKey;
-import com.facebook.common.references.CloseableReference;
-import com.facebook.imagepipeline.image.EncodedImage;
-import com.facebook.imagepipeline.memory.PooledByteBuffer;
-
-import org.junit.*;
-import org.junit.runner.*;
-import org.robolectric.*;
 
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
+import com.facebook.cache.common.CacheKey;
+import com.facebook.cache.common.SimpleCacheKey;
+import com.facebook.common.memory.PooledByteBuffer;
+import com.facebook.common.references.CloseableReference;
+import com.facebook.imagepipeline.image.EncodedImage;
+import org.junit.*;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
+
 @RunWith(RobolectricTestRunner.class)
+@Config(manifest = Config.NONE)
 public class StagingAreaTest {
   private StagingArea mStagingArea;
   private CloseableReference<PooledByteBuffer> mCloseableReference;
@@ -40,6 +38,19 @@ public class StagingAreaTest {
     mSecondEncodedImage = new EncodedImage(mCloseableReference2);
     mCacheKey = new SimpleCacheKey("http://this.is/uri");
     mStagingArea.put(mCacheKey, mEncodedImage);
+  }
+
+  @Test
+  public void testContains() {
+    assertTrue(mStagingArea.containsKey(mCacheKey));
+    assertFalse(mStagingArea.containsKey(new SimpleCacheKey("http://this.is.not.uri")));
+  }
+
+  @Test
+  public void testDoesntContainInvalid() {
+    mEncodedImage.close();
+    assertTrue(mStagingArea.containsKey(mCacheKey));
+    assertTrue(EncodedImage.isValid(mStagingArea.get(mCacheKey)));
   }
 
   @Test

@@ -1,20 +1,18 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.imagepipeline.cache;
 
 import android.net.Uri;
-
 import com.facebook.cache.common.CacheKey;
 import com.facebook.cache.common.SimpleCacheKey;
 import com.facebook.imagepipeline.request.ImageRequest;
 import com.facebook.imagepipeline.request.Postprocessor;
+import javax.annotation.Nullable;
 
 /**
  * Default implementation of {@link CacheKeyFactory}.
@@ -34,18 +32,19 @@ public class DefaultCacheKeyFactory implements CacheKeyFactory {
   }
 
   @Override
-  public CacheKey getBitmapCacheKey(ImageRequest request) {
+  public CacheKey getBitmapCacheKey(ImageRequest request, Object callerContext) {
     return new BitmapMemoryCacheKey(
         getCacheKeySourceUri(request.getSourceUri()).toString(),
         request.getResizeOptions(),
-        request.getAutoRotateEnabled(),
+        request.getRotationOptions(),
         request.getImageDecodeOptions(),
         null,
-        null);
+        null,
+        callerContext);
   }
 
   @Override
-  public CacheKey getPostprocessedBitmapCacheKey(ImageRequest request) {
+  public CacheKey getPostprocessedBitmapCacheKey(ImageRequest request, Object callerContext) {
     final Postprocessor postprocessor = request.getPostprocessor();
     final CacheKey postprocessorCacheKey;
     final String postprocessorName;
@@ -59,19 +58,30 @@ public class DefaultCacheKeyFactory implements CacheKeyFactory {
     return new BitmapMemoryCacheKey(
         getCacheKeySourceUri(request.getSourceUri()).toString(),
         request.getResizeOptions(),
-        request.getAutoRotateEnabled(),
+        request.getRotationOptions(),
         request.getImageDecodeOptions(),
         postprocessorCacheKey,
-        postprocessorName);
+        postprocessorName,
+        callerContext);
   }
 
   @Override
-  public CacheKey getEncodedCacheKey(ImageRequest request) {
-    return new SimpleCacheKey(getCacheKeySourceUri(request.getSourceUri()).toString());
+  public CacheKey getEncodedCacheKey(ImageRequest request, @Nullable Object callerContext) {
+    return getEncodedCacheKey(request, request.getSourceUri(), callerContext);
   }
 
   @Override
-  public Uri getCacheKeySourceUri(Uri sourceUri) {
+  public CacheKey getEncodedCacheKey(
+      ImageRequest request,
+      Uri sourceUri,
+      @Nullable Object callerContext) {
+    return new SimpleCacheKey(getCacheKeySourceUri(sourceUri).toString());
+  }
+
+  /**
+   * @return a {@link Uri} that unambiguously indicates the source of the image.
+   */
+  protected Uri getCacheKeySourceUri(Uri sourceUri) {
     return sourceUri;
   }
 }

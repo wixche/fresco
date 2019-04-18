@@ -1,32 +1,27 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.drawee.testing;
 
-import java.util.concurrent.atomic.AtomicInteger;
+import static org.mockito.Mockito.*;
 
 import android.graphics.drawable.Drawable;
-
 import com.facebook.common.internal.Supplier;
 import com.facebook.drawee.controller.AbstractDraweeController;
 import com.facebook.drawee.controller.ControllerListener;
 import com.facebook.drawee.controller.ForwardingControllerListener;
 import com.facebook.drawee.drawable.DrawableTestUtils;
-import com.facebook.drawee.interfaces.DraweeController;
-import com.facebook.drawee.interfaces.DraweeHierarchy;
 import com.facebook.drawee.generic.GenericDraweeHierarchy;
 import com.facebook.drawee.generic.GenericDraweeHierarchyBuilder;
-
+import com.facebook.drawee.interfaces.DraweeController;
+import com.facebook.drawee.interfaces.DraweeHierarchy;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
-
-import static org.mockito.Mockito.*;
 
 /**
  * Drawee mocks
@@ -40,6 +35,7 @@ public class DraweeMocks {
   public static DraweeController mockController() {
     DraweeController controller = mock(AbstractDraweeController.class);
     stubGetAndSetHierarchy(controller);
+    stubGetAndSetContentDescription(controller);
     return controller;
   }
 
@@ -63,6 +59,28 @@ public class DraweeMocks {
             return dhHolder[0] = (DraweeHierarchy) invocation.getArguments()[0];
           }
         }).when(controller).setHierarchy(any(DraweeHierarchy.class));
+  }
+
+  /**
+   * Stubs setContentDescription and getContentDescription methods.
+   * @param controller controller to stub methods of
+   */
+  public static void stubGetAndSetContentDescription(DraweeController controller) {
+    final String[] contentDescriptionHolder = new String[1];
+    doAnswer(
+        new Answer<Object>() {
+          @Override
+          public Object answer(InvocationOnMock invocation) throws Throwable {
+            return contentDescriptionHolder[0];
+          }
+        }).when(controller).getContentDescription();
+    doAnswer(
+        new Answer() {
+          @Override
+          public Object answer(InvocationOnMock invocation) throws Throwable {
+            return contentDescriptionHolder[0] = (String) invocation.getArguments()[0];
+          }
+        }).when(controller).setContentDescription(any(String.class));
   }
 
   /**

@@ -1,10 +1,8 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 #include <string.h>
@@ -124,23 +122,12 @@ static void Bitmaps_copyBitmap(
 }
 
 static JNINativeMethod bitmaps_native_methods[] = {
-  { "nativePinBitmap",
-    "(Landroid/graphics/Bitmap;)V",
-    (void*) Bitmaps_pinBitmap },
   { "nativeCopyBitmap",
     "(Landroid/graphics/Bitmap;ILandroid/graphics/Bitmap;II)V",
     (void*) Bitmaps_copyBitmap },
 };
 
-__attribute__((visibility("default")))
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
-  UNUSED(reserved);
-  JNIEnv* env;
-
-  if ((*vm)->GetEnv(vm, (void**) &env, JNI_VERSION_1_6) != JNI_OK) {
-    return JNI_ERR;
-  }
-
+jint registerBitmapsMethods(JNIEnv* env) {
   jclass runtime_exception = (*env)->FindClass(
       env,
       "java/lang/RuntimeException");
@@ -161,6 +148,40 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
       bitmaps_class,
       bitmaps_native_methods,
       ARRAY_SIZE(bitmaps_native_methods));
+  if (rc != JNI_OK) {
+    return JNI_ERR;
+  }
+
+  return JNI_VERSION_1_6;
+}
+
+static JNINativeMethod dalvik_decoder_native_methods[] = {
+  { "nativePinBitmap",
+    "(Landroid/graphics/Bitmap;)V",
+    (void*) Bitmaps_pinBitmap },
+};
+
+jint registerDalvikDecoderMethods(JNIEnv* env) {
+  jclass runtime_exception = (*env)->FindClass(
+      env,
+      "java/lang/RuntimeException");
+  if (!runtime_exception) {
+    return JNI_ERR;
+  }
+  runtime_exception_class = (*env)->NewGlobalRef(env, runtime_exception);
+
+  jclass dalvik_decoder_class = (*env)->FindClass(
+       env,
+      "com/facebook/imagepipeline/nativecode/DalvikPurgeableDecoder");
+  if (!dalvik_decoder_class) {
+    return JNI_ERR;
+  }
+
+  int rc = (*env)->RegisterNatives(
+      env,
+      dalvik_decoder_class,
+      dalvik_decoder_native_methods,
+      ARRAY_SIZE(dalvik_decoder_native_methods));
   if (rc != JNI_OK) {
     return JNI_ERR;
   }

@@ -1,10 +1,8 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.imagepipeline.backends.okhttp;
@@ -12,13 +10,13 @@ package com.facebook.imagepipeline.backends.okhttp;
 import android.net.Uri;
 import android.os.Looper;
 import android.os.SystemClock;
-
 import com.facebook.common.logging.FLog;
 import com.facebook.imagepipeline.image.EncodedImage;
 import com.facebook.imagepipeline.producers.BaseNetworkFetcher;
 import com.facebook.imagepipeline.producers.BaseProducerContextCallbacks;
 import com.facebook.imagepipeline.producers.Consumer;
 import com.facebook.imagepipeline.producers.FetchState;
+import com.facebook.imagepipeline.producers.NetworkFetcher;
 import com.facebook.imagepipeline.producers.ProducerContext;
 import com.squareup.okhttp.CacheControl;
 import com.squareup.okhttp.Call;
@@ -26,14 +24,17 @@ import com.squareup.okhttp.OkHttpClient;
 import com.squareup.okhttp.Request;
 import com.squareup.okhttp.Response;
 import com.squareup.okhttp.ResponseBody;
-
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import javax.annotation.Nullable;
 
 /**
  * Network fetcher that uses OkHttp as a backend.
+ *
+ * @deprecated replaced with {@code
+ * com.facebook.imagepipeline.backends.okhttp3.OkHttpNetworkFetcher}.
  */
 public class OkHttpNetworkFetcher extends
     BaseNetworkFetcher<OkHttpNetworkFetcher.OkHttpNetworkFetchState> {
@@ -57,6 +58,7 @@ public class OkHttpNetworkFetcher extends
   private static final String IMAGE_SIZE = "image_size";
 
   private final OkHttpClient mOkHttpClient;
+  private final @Nullable CacheControl mCacheControl;
 
   private Executor mCancellationExecutor;
 
@@ -64,8 +66,17 @@ public class OkHttpNetworkFetcher extends
    * @param okHttpClient client to use
    */
   public OkHttpNetworkFetcher(OkHttpClient okHttpClient) {
+    this(okHttpClient, true);
+  }
+
+  /**
+   * @param okHttpClient client to use
+   * @param disableOkHttpCache true if network requests should not be cached by OkHttp
+   */
+  public OkHttpNetworkFetcher(OkHttpClient okHttpClient, boolean disableOkHttpCache) {
     mOkHttpClient = okHttpClient;
     mCancellationExecutor = okHttpClient.getDispatcher().getExecutorService();
+    mCacheControl = disableOkHttpCache ? new CacheControl.Builder().noStore().build() : null;
   }
 
   @Override
@@ -76,14 +87,28 @@ public class OkHttpNetworkFetcher extends
   }
 
   @Override
-  public void fetch(final OkHttpNetworkFetchState fetchState, final Callback callback) {
-    fetchState.submitTime = SystemClock.elapsedRealtime();
+  public void fetch(
+      final OkHttpNetworkFetchState fetchState, final NetworkFetcher.Callback callback) {
+    fetchState.submitTime = SystemClock.uptimeMillis();
     final Uri uri = fetchState.getUri();
-    final Request request = new Request.Builder()
-        .cacheControl(new CacheControl.Builder().noStore().build())
-        .url(uri.toString())
-        .get()
-        .build();
+
+    try {
+      final Request.Builder builder = new Request.Builder().url(uri.toString()).get();
+      if (mCacheControl != null) {
+        builder.cacheControl(mCacheControl);
+      }
+      fetchWithRequest(fetchState, callback, builder.build());
+    } catch (Exception e) {
+      // handle error while creating the request
+      callback.onFailure(e);
+    }
+  }
+
+  protected void fetchWithRequest(
+      final OkHttpNetworkFetchState fetchState,
+      final NetworkFetcher.Callback callback,
+      final Request request) {
+
     final Call call = mOkHttpClient.newCall(request);
 
     fetchState.getContext().addCallbacks(
@@ -106,9 +131,17 @@ public class OkHttpNetworkFetcher extends
         new com.squareup.okhttp.Callback() {
           @Override
           public void onResponse(Response response) {
-            fetchState.responseTime = SystemClock.elapsedRealtime();
+            fetchState.responseTime = SystemClock.uptimeMillis();
             final ResponseBody body = response.body();
             try {
+              if (!response.isSuccessful()) {
+                handleException(
+                        call,
+                        new IOException("Unexpected HTTP code " + response),
+                        callback);
+                return;
+              }
+
               long contentLength = body.contentLength();
               if (contentLength < 0) {
                 contentLength = 0;
@@ -134,7 +167,7 @@ public class OkHttpNetworkFetcher extends
 
   @Override
   public void onFetchCompletion(OkHttpNetworkFetchState fetchState, int byteSize) {
-    fetchState.fetchCompleteTime = SystemClock.elapsedRealtime();
+    fetchState.fetchCompleteTime = SystemClock.uptimeMillis();
   }
 
   @Override

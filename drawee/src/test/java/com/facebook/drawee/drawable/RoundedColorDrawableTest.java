@@ -1,13 +1,15 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.drawee.drawable;
+
+import static org.junit.Assert.*;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.*;
 
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -15,17 +17,11 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.drawable.Drawable;
-
-import org.robolectric.RobolectricTestRunner;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
-
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
-import static org.mockito.Matchers.any;
+import org.robolectric.RobolectricTestRunner;
 
 @RunWith(RobolectricTestRunner.class)
 public class RoundedColorDrawableTest {
@@ -46,15 +42,15 @@ public class RoundedColorDrawableTest {
   @Test
   public void testInitialSetup() {
     assertEquals(Color.GREEN, mRoundedColorDrawable.getColor());
-    assertFalse(mRoundedColorDrawable.mIsCircle);
-    assertArrayEquals(new float[] {0, 0, 0, 0, 0, 0, 0, 0}, mRoundedColorDrawable.mRadii, 0f);
+    assertFalse(mRoundedColorDrawable.isCircle());
+    assertArrayEquals(new float[] {0, 0, 0, 0, 0, 0, 0, 0}, mRoundedColorDrawable.getRadii(), 0f);
   }
 
   @Test
   public void testSetCircle() {
     mRoundedColorDrawable.setCircle(true);
     verify(mCallback).invalidateDrawable(mRoundedColorDrawable);
-    assertTrue(mRoundedColorDrawable.mIsCircle);
+    assertTrue(mRoundedColorDrawable.isCircle());
   }
 
   @Test
@@ -63,7 +59,7 @@ public class RoundedColorDrawableTest {
     float[] expectedRadii = {8f, 8f, 8f, 8f, 8f, 8f, 8f, 8f};
     mRoundedColorDrawable.setRadii(radii);
     verify(mCallback).invalidateDrawable(mRoundedColorDrawable);
-    assertArrayEquals(expectedRadii, mRoundedColorDrawable.mRadii, 0f);
+    assertArrayEquals(expectedRadii, mRoundedColorDrawable.getRadii(), 0f);
   }
 
   @Test
@@ -72,7 +68,7 @@ public class RoundedColorDrawableTest {
     float[] expectedRadii = {8f, 8f, 8f, 8f, 8f, 8f, 8f, 8f};
     mRoundedColorDrawable.setRadius(radius);
     verify(mCallback).invalidateDrawable(mRoundedColorDrawable);
-    assertArrayEquals(expectedRadii, mRoundedColorDrawable.mRadii, 0f);
+    assertArrayEquals(expectedRadii, mRoundedColorDrawable.getRadii(), 0f);
   }
 
   @Test
@@ -97,8 +93,30 @@ public class RoundedColorDrawableTest {
     float width = 5;
     mRoundedColorDrawable.setBorder(color, width);
     verify(mCallback, times(2)).invalidateDrawable(mRoundedColorDrawable);
-    assertEquals(color, mRoundedColorDrawable.mBorderColor);
-    assertEquals(width, mRoundedColorDrawable.mBorderWidth, 0);
+    assertEquals(color, mRoundedColorDrawable.getBorderColor());
+    assertEquals(width, mRoundedColorDrawable.getBorderWidth(), 0);
+  }
+
+  @Test
+  public void testSetPadding() {
+    float padding = 10;
+    mRoundedColorDrawable.setPadding(padding);
+    verify(mCallback).invalidateDrawable(mRoundedColorDrawable);
+    assertEquals(padding, mRoundedColorDrawable.getPadding(), 0);
+  }
+
+  @Test
+  public void testSetScaleDownInsideBorders() {
+    mRoundedColorDrawable.setScaleDownInsideBorders(true);
+    verify(mCallback).invalidateDrawable(mRoundedColorDrawable);
+    assertTrue(mRoundedColorDrawable.getScaleDownInsideBorders());
+  }
+
+  @Test
+  public void testSetPaintFilterBitmap() {
+    mRoundedColorDrawable.setPaintFilterBitmap(true);
+    verify(mCallback).invalidateDrawable(mRoundedColorDrawable);
+    assertTrue(mRoundedColorDrawable.getPaintFilterBitmap());
   }
 
   @Test

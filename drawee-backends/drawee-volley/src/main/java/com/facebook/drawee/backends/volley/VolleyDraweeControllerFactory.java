@@ -1,21 +1,14 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.drawee.backends.volley;
 
 import android.content.res.Resources;
-import android.graphics.Bitmap;
-
-import com.facebook.common.internal.Supplier;
-import com.facebook.datasource.DataSource;
 import com.facebook.drawee.components.DeferredReleaser;
-
 import java.util.concurrent.Executor;
 
 /**
@@ -36,16 +29,7 @@ public class VolleyDraweeControllerFactory {
     mUiThreadExecutor = uiThreadExecutor;
   }
 
-  public VolleyDraweeController newController(
-      Supplier<DataSource<Bitmap>> dataSourceSupplier,
-      String id,
-      Object callerContext) {
-    return new VolleyDraweeController(
-        mResources,
-        mDeferredReleaser,
-        mUiThreadExecutor,
-        dataSourceSupplier,
-        id,
-        callerContext);
+  public VolleyDraweeController newController() {
+    return new VolleyDraweeController(mResources, mDeferredReleaser, mUiThreadExecutor);
   }
 }

@@ -1,10 +1,8 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.drawee.drawable;
@@ -13,14 +11,13 @@ import android.graphics.Canvas;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.os.SystemClock;
-
 import com.facebook.common.internal.Preconditions;
 import com.facebook.common.internal.VisibleForTesting;
 
 /**
  * Drawable that automatically rotates underlying drawable.
  */
-public class AutoRotateDrawable extends ForwardingDrawable implements Runnable {
+public class AutoRotateDrawable extends ForwardingDrawable implements Runnable, CloneableDrawable {
   private static final int DEGREES_IN_FULL_ROTATION = 360;
   private static final int FRAME_INTERVAL_MS = 20;
 
@@ -102,6 +99,12 @@ public class AutoRotateDrawable extends ForwardingDrawable implements Runnable {
     mIsScheduled = false;
     mRotationAngle += getIncrement();
     invalidateSelf();
+  }
+
+  @Override
+  public AutoRotateDrawable cloneDrawable() {
+    Drawable delegateCopy = DrawableUtils.cloneDrawable(getDrawable());
+    return new AutoRotateDrawable(delegateCopy, mInterval, mClockwise);
   }
 
   /**

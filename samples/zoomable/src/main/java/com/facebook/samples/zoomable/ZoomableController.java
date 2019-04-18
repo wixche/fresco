@@ -25,7 +25,14 @@ public interface ZoomableController {
   /**
    * Listener interface.
    */
-  public interface Listener {
+  interface Listener {
+
+    /**
+     * Notifies the view that the transform began.
+     *
+     * @param transform the current transform matrix
+     */
+    void onTransformBegin(Matrix transform);
 
     /**
      * Notifies the view that the transform changed.
@@ -33,6 +40,13 @@ public interface ZoomableController {
      * @param transform the new matrix
      */
     void onTransformChanged(Matrix transform);
+
+    /**
+     * Notifies the view that the transform ended.
+     *
+     * @param transform the current transform matrix
+     */
+    void onTransformEnd(Matrix transform);
   }
 
   /**
@@ -64,6 +78,28 @@ public interface ZoomableController {
    * @return the current scale factor
    */
   float getScaleFactor();
+
+  /**
+   * Returns true if the zoomable transform is identity matrix, and the controller is idle.
+   */
+  boolean isIdentity();
+
+  /**
+   * Returns true if the transform was corrected during the last update.
+   *
+   * This mainly happens when a gesture would cause the image to get out of limits and the
+   * transform gets corrected in order to prevent that.
+   */
+  boolean wasTransformCorrected();
+
+  /** See {@link androidx.core.view.ScrollingView}. */
+  int computeHorizontalScrollRange();
+
+  int computeHorizontalScrollOffset();
+  int computeHorizontalScrollExtent();
+  int computeVerticalScrollRange();
+  int computeVerticalScrollOffset();
+  int computeVerticalScrollExtent();
 
   /**
    * Gets the current transform.

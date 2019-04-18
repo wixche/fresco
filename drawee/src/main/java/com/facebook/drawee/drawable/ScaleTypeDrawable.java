@@ -1,35 +1,37 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.drawee.drawable;
+
+import static com.facebook.drawee.drawable.ScalingUtils.*;
 
 import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
-
+import com.facebook.common.internal.Objects;
 import com.facebook.common.internal.Preconditions;
 import com.facebook.common.internal.VisibleForTesting;
+import javax.annotation.Nullable;
 
 /**
- * Drawable that can scale underlying drawable based on specified {@link ScalingUtils.ScaleType}
+ * Drawable that can scale underlying drawable based on specified {@link ScaleType}
  * options.
  * <p/> Based on {@link android.widget.ImageView.ScaleType}.
  */
 public class ScaleTypeDrawable extends ForwardingDrawable {
 
   // Specified scale type.
-  @VisibleForTesting ScalingUtils.ScaleType mScaleType;
+  @VisibleForTesting ScaleType mScaleType;
+  @VisibleForTesting Object mScaleTypeState;
 
   // Specified focus point to use with FOCUS_CROP.
-  @VisibleForTesting PointF mFocusPoint = null;
+  @VisibleForTesting @Nullable PointF mFocusPoint = null;
 
   // Last known dimensions of the underlying drawable. Used to avoid computing bounds every time
   // if underlying size hasn't changed.
@@ -47,16 +49,37 @@ public class ScaleTypeDrawable extends ForwardingDrawable {
    * @param drawable underlying drawable to apply scale type on
    * @param scaleType scale type to be applied
    */
-  public ScaleTypeDrawable(Drawable drawable, ScalingUtils.ScaleType scaleType) {
+  public ScaleTypeDrawable(Drawable drawable, ScaleType scaleType) {
     super(Preconditions.checkNotNull(drawable));
     mScaleType = scaleType;
+  }
+
+  /**
+   * Creates a new ScaleType drawable with given underlying drawable, scale type, and focus point.
+   *
+   * @param drawable underlying drawable to apply scale type on
+   * @param scaleType scale type to be applied
+   * @param focusPoint focus point of the image
+   */
+  public ScaleTypeDrawable(Drawable drawable, ScaleType scaleType, @Nullable PointF focusPoint) {
+    super(Preconditions.checkNotNull(drawable));
+    mScaleType = scaleType;
+    mFocusPoint = focusPoint;
+  }
+
+  @Override
+  public Drawable setCurrent(Drawable newDelegate) {
+    final Drawable previousDelegate = super.setCurrent(newDelegate);
+    configureBounds();
+
+    return previousDelegate;
   }
 
   /**
    * Gets the current scale type.
    * @return scale type
    */
-  public ScalingUtils.ScaleType getScaleType() {
+  public ScaleType getScaleType() {
     return mScaleType;
   }
 
@@ -64,16 +87,23 @@ public class ScaleTypeDrawable extends ForwardingDrawable {
    * Sets the scale type.
    * @param scaleType scale type to set
    */
-  public void setScaleType(ScalingUtils.ScaleType scaleType) {
+  public void setScaleType(ScaleType scaleType) {
+    if (Objects.equal(mScaleType, scaleType)) {
+      return;
+    }
+
     mScaleType = scaleType;
+    mScaleTypeState = null;
     configureBounds();
     invalidateSelf();
   }
 
   /**
    * Gets the focus point.
+   *
    * @return focus point of the image
    */
+  @Nullable
   public PointF getFocusPoint() {
     return mFocusPoint;
   }
@@ -86,9 +116,14 @@ public class ScaleTypeDrawable extends ForwardingDrawable {
    * @param focusPoint focus point of the image
    */
   public void setFocusPoint(PointF focusPoint) {
+    if (Objects.equal(mFocusPoint, focusPoint)) {
+      return;
+    }
+
     if (mFocusPoint == null) {
       mFocusPoint = new PointF();
     }
+
     mFocusPoint.set(focusPoint);
     configureBounds();
     invalidateSelf();
@@ -115,8 +150,16 @@ public class ScaleTypeDrawable extends ForwardingDrawable {
   }
 
   private void configureBoundsIfUnderlyingChanged() {
-    if (mUnderlyingWidth != getCurrent().getIntrinsicWidth() ||
-        mUnderlyingHeight != getCurrent().getIntrinsicHeight()) {
+    boolean scaleTypeChanged = false;
+    if (mScaleType instanceof StatefulScaleType) {
+      Object state = ((StatefulScaleType) mScaleType).getState();
+      scaleTypeChanged = (state == null || !state.equals(mScaleTypeState));
+      mScaleTypeState = state;
+    }
+    boolean underlyingChanged =
+        mUnderlyingWidth != getCurrent().getIntrinsicWidth() ||
+        mUnderlyingHeight != getCurrent().getIntrinsicHeight();
+    if (underlyingChanged || scaleTypeChanged) {
       configureBounds();
     }
   }
@@ -148,8 +191,8 @@ public class ScaleTypeDrawable extends ForwardingDrawable {
     }
 
     // If we're told to scale to fit, we just fill our entire view.
-    // (ScalingUtils.getTransform would do, but this is faster)
-    if (mScaleType == ScalingUtils.ScaleType.FIT_XY) {
+    // (ScaleType.getTransform would do, but this is faster)
+    if (mScaleType == ScaleType.FIT_XY) {
       underlyingDrawable.setBounds(bounds);
       mDrawMatrix = null;
       return;
@@ -157,14 +200,13 @@ public class ScaleTypeDrawable extends ForwardingDrawable {
 
     // We need to do the scaling ourselves, so have the underlying drawable use its preferred size.
     underlyingDrawable.setBounds(0, 0, underlyingWidth, underlyingHeight);
-    ScalingUtils.getTransform(
+    mScaleType.getTransform(
         mTempMatrix,
         bounds,
         underlyingWidth,
         underlyingHeight,
         (mFocusPoint != null) ? mFocusPoint.x : 0.5f,
-        (mFocusPoint != null) ? mFocusPoint.y : 0.5f,
-        mScaleType);
+        (mFocusPoint != null) ? mFocusPoint.y : 0.5f);
     mDrawMatrix = mTempMatrix;
   }
 

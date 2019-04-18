@@ -1,45 +1,28 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.imagepipeline.nativecode;
 
-import android.annotation.TargetApi;
 import android.graphics.Bitmap;
-
 import com.facebook.common.internal.DoNotStrip;
 import com.facebook.common.internal.Preconditions;
-import com.facebook.common.soloader.SoLoaderShim;
-import com.facebook.imageutils.BitmapUtil;
+import java.nio.ByteBuffer;
 
 /**
  * Utility methods for handling Bitmaps.
+ *
+ * <p> Native code used by this class is shipped as part of libimagepipeline.so
  */
 @DoNotStrip
 public class Bitmaps {
 
   static {
-    SoLoaderShim.loadLibrary("bitmaps");
+    ImagePipelineNativeLoader.load();
   }
-
-  /**
-   * Pin the bitmap so that it cannot be 'purged'. Only makes sense for purgeable bitmaps
-   * WARNING: Use with caution. Make sure that the pinned bitmap is recycled eventually. Otherwise,
-   * this will simply eat up ashmem memory and eventually lead to unfortunate crashes.
-   * We *may* eventually provide an unpin method - but we don't yet have a compelling use case for
-   * that.
-   * @param bitmap the purgeable bitmap to pin
-   */
-  public static void pinBitmap(Bitmap bitmap) {
-    Preconditions.checkNotNull(bitmap);
-    nativePinBitmap(bitmap);
-  }
-
 
   /**
    * This blits the pixel data from src to dest.
@@ -65,28 +48,6 @@ public class Bitmaps {
         src.getRowBytes(),
         dest.getHeight());
   }
-
-  /**
-   * Reconfigures bitmap after checking its allocation size.
-   *
-   * <p> This method is here to overcome our testing framework limit. Robolectric does not provide
-   * KitKat specific APIs: {@link Bitmap#reconfigure} and {@link Bitmap#getAllocationByteCount}
-   * are part of that.
-   */
-  @TargetApi(19)
-  public static void reconfigureBitmap(
-      Bitmap bitmap,
-      int width,
-      int height,
-      Bitmap.Config bitmapConfig) {
-    Preconditions.checkArgument(
-        bitmap.getAllocationByteCount() >=
-            width * height * BitmapUtil.getPixelSizeForBitmapConfig(bitmapConfig));
-    bitmap.reconfigure(width, height, bitmapConfig);
-  }
-
-  @DoNotStrip
-  private static native void nativePinBitmap(Bitmap bitmap);
 
   @DoNotStrip
   private static native void nativeCopyBitmap(

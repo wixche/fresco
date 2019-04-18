@@ -1,21 +1,28 @@
 apply plugin: 'com.android.application'
 
 dependencies {
-    provided "com.google.code.findbugs:jsr305:${JSR_305_VERSION}"
-    compile "com.android.support:appcompat-v7:${APPCOMPAT_V7_VERSION}"
-    compile "com.github.bumptech.glide:glide:${GLIDE_VERSION}"
-    compile "com.mcxiaoke.volley:library:${VOLLEY_VERSION}"
-    compile "com.nostra13.universalimageloader:universal-image-loader:${UIL_VERSION}"
-    compile "com.squareup.picasso:picasso:${PICASSO_VERSION}"
-    compile 'com.android.support:recyclerview-v7:21.+'
-    compile "com.googlecode.android-query:android-query:${AQUERY_VERSION}"
+    compileOnly "com.google.code.findbugs:jsr305:${JSR_305_VERSION}"
+    implementation "com.github.bumptech.glide:glide:${GLIDE_VERSION}"
+    annotationProcessor "com.github.bumptech.glide:compiler:${GLIDE_VERSION}"
+    annotationProcessor "androidx.annotation:annotation:${versions.androidx.annotation}"
+    implementation "com.android.volley:volley:${VOLLEY_VERSION}"
+    implementation "com.nostra13.universalimageloader:universal-image-loader:${UIL_VERSION}"
+    implementation "com.squareup.picasso:picasso:${PICASSO_VERSION}"
+    implementation "com.jakewharton.picasso:picasso2-okhttp3-downloader:1.0.2"
+    implementation "androidx.appcompat:appcompat:${versions.androidx.appcompat}"
+    implementation "androidx.recyclerview:recyclerview:${versions.androidx.recyclerview}"
+    implementation "com.googlecode.android-query:android-query:${AQUERY_VERSION}"
+    implementation "com.facebook.stetho:stetho-okhttp3:${STETHO_VERSION}"
 
-    compile project(':drawee')
-    compile project(':drawee-backends:drawee-pipeline')
-    compile project(':drawee-backends:drawee-volley')
-    compile project(':fbcore')
-    compile project(':imagepipeline')
-    compile project(':imagepipeline-backends:imagepipeline-okhttp')
+    implementation project(':drawee')
+    implementation project(':drawee-backends:drawee-pipeline')
+    implementation project(':drawee-backends:drawee-volley')
+    implementation project(':fbcore')
+    implementation project(':imagepipeline')
+    implementation project(':imagepipeline-backends:imagepipeline-okhttp3')
+    implementation project(':native-imagetranscoder')
+    implementation project(':animated-gif')
+    implementation project(':tools:stetho')
 }
 
 android {
@@ -26,8 +33,8 @@ android {
 
     defaultConfig {
         applicationId "com.facebook.samples.comparison"
-        minSdkVersion 9
-        targetSdkVersion 21
+        minSdkVersion rootProject.ext.samplesMinSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "${VERSION_NAME}"
 
@@ -37,19 +44,20 @@ android {
     buildTypes {
         release {
             minifyEnabled true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), '../../proguard-fresco.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard.pro'
         }
     }
 
     lintOptions {
         warning 'InvalidPackage'
+        abortOnError false
     }
 
     splits {
         abi {
             enable true
             reset()
-            include 'x86', 'x86_64', 'arm64-v8a', 'armeabi-v7a', 'armeabi'
+            include 'x86', 'x86_64', 'arm64-v8a', 'armeabi-v7a'
             universalApk false
         }
     }

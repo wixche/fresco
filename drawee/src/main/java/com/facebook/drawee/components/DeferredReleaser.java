@@ -1,21 +1,18 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.drawee.components;
 
-import java.util.HashSet;
-import java.util.Set;
-
 import android.os.Handler;
 import android.os.Looper;
-
 import com.facebook.common.internal.Preconditions;
+import java.util.HashSet;
+import java.util.Set;
+import javax.annotation.Nullable;
 
 /**
  * Component that defers {@code release} until after the main Looper has completed its current
@@ -34,7 +31,7 @@ import com.facebook.common.internal.Preconditions;
  */
 public class DeferredReleaser {
 
-  private static DeferredReleaser sInstance = null;
+  private static @Nullable DeferredReleaser sInstance = null;
 
   public static synchronized DeferredReleaser getInstance() {
     if (sInstance == null) {
@@ -44,14 +41,14 @@ public class DeferredReleaser {
   }
 
   public interface Releasable {
-    public void release();
+    void release();
   }
 
   private final Set<Releasable> mPendingReleasables;
   private final Handler mUiHandler;
 
   public DeferredReleaser() {
-    mPendingReleasables =  new HashSet<Releasable>();
+    mPendingReleasables = new HashSet<>();
     mUiHandler = new Handler(Looper.getMainLooper());
   }
 

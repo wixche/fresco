@@ -1,19 +1,16 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.imagepipeline.nativecode;
 
+import com.facebook.soloader.SoLoader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
-import com.facebook.common.soloader.SoLoaderShim;
 
 /**
  * Single place responsible for loading libimagepipeline.so and its dependencies.
@@ -36,14 +33,10 @@ public class ImagePipelineNativeLoader {
   public static final List<String> DEPENDENCIES;
   static {
     List<String> dependencies = new ArrayList<String>();
-    dependencies.add("webp");
     DEPENDENCIES = Collections.unmodifiableList(dependencies);
   }
 
   public static void load() {
-    for (int i = 0; i < DEPENDENCIES.size(); ++i) {
-      SoLoaderShim.loadLibrary(DEPENDENCIES.get(i));
-    }
-    SoLoaderShim.loadLibrary(DSO_NAME);
+    SoLoader.loadLibrary("imagepipeline");
   }
 }

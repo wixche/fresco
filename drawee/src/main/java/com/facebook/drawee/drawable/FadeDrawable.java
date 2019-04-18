@@ -1,22 +1,18 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.drawee.drawable;
 
-import java.util.Arrays;
-
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
 import android.os.SystemClock;
-
 import com.facebook.common.internal.Preconditions;
 import com.facebook.common.internal.VisibleForTesting;
+import java.util.Arrays;
 
 /**
  * A drawable that fades to the specific layer.
@@ -56,6 +52,9 @@ public class FadeDrawable extends ArrayDrawable {
    */
   private final Drawable[] mLayers;
 
+  private final boolean mDefaultLayerIsOn;
+  private final int mDefaultLayerAlpha;
+
   /**
    * The current state.
    */
@@ -83,6 +82,18 @@ public class FadeDrawable extends ArrayDrawable {
    * @param layers layers to fade between
    */
   public FadeDrawable(Drawable[] layers) {
+    this(layers, false);
+  }
+
+  /**
+   * Creates a new fade drawable. The first layer is displayed with full opacity whereas all other
+   * layers are invisible if allLayersVisible is false. Otherwise, all layers will be displayed with
+   * full opacity.
+   *
+   * @param layers layers to fade between
+   * @param allLayersVisible true if all layers should be visible per default
+   */
+  public FadeDrawable(Drawable[] layers, boolean allLayersVisible) {
     super(layers);
     Preconditions.checkState(layers.length >= 1, "At least one layer required!");
     mLayers = layers;
@@ -91,6 +102,8 @@ public class FadeDrawable extends ArrayDrawable {
     mAlpha = 255;
     mIsLayerOn = new boolean[layers.length];
     mPreventInvalidateCount = 0;
+    mDefaultLayerIsOn = allLayersVisible;
+    mDefaultLayerAlpha = mDefaultLayerIsOn ? 255 : 0;
     resetInternal();
   }
 
@@ -140,11 +153,11 @@ public class FadeDrawable extends ArrayDrawable {
    */
   private void resetInternal() {
     mTransitionState = TRANSITION_NONE;
-    Arrays.fill(mStartAlphas, 0);
+    Arrays.fill(mStartAlphas, mDefaultLayerAlpha);
     mStartAlphas[0] = 255;
-    Arrays.fill(mAlphas, 0);
+    Arrays.fill(mAlphas, mDefaultLayerAlpha);
     mAlphas[0] = 255;
-    Arrays.fill(mIsLayerOn, false);
+    Arrays.fill(mIsLayerOn, mDefaultLayerIsOn);
     mIsLayerOn[0] = true;
   }
 
@@ -215,6 +228,28 @@ public class FadeDrawable extends ArrayDrawable {
     mTransitionState = TRANSITION_STARTING;
     Arrays.fill(mIsLayerOn, 0, index + 1, true);
     Arrays.fill(mIsLayerOn, index + 1, mLayers.length, false);
+    invalidateSelf();
+  }
+
+  /**
+   * Makes the specified layer fully opaque
+   *
+   * @param index the index of the layer to be shown
+   */
+  public void showLayerImmediately(int index) {
+    mIsLayerOn[index] = true;
+    mAlphas[index] = 255;
+    invalidateSelf();
+  }
+
+  /**
+   * Makes the specified layer fully transparent
+   *
+   * @param index the index of the layer to be hidden
+   */
+  public void hideLayerImmediately(int index) {
+    mIsLayerOn[index] = false;
+    mAlphas[index] = 0;
     invalidateSelf();
   }
 
@@ -342,4 +377,7 @@ public class FadeDrawable extends ArrayDrawable {
     return mIsLayerOn[index];
   }
 
+  public boolean isDefaultLayerIsOn() {
+    return mDefaultLayerIsOn;
+  }
 }

@@ -1,27 +1,23 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.drawee.drawable;
+
+import static org.mockito.Mockito.*;
 
 import android.graphics.Canvas;
 import android.graphics.ColorFilter;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
-
-import org.robolectric.RobolectricTestRunner;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
-import static org.mockito.Mockito.*;
+import org.robolectric.RobolectricTestRunner;
 
 /**
  * Tests for {@link ForwardingDrawable}
@@ -29,12 +25,12 @@ import static org.mockito.Mockito.*;
 @RunWith(RobolectricTestRunner.class)
 public class ForwardingDrawableTest {
   private Drawable mInnerDrawable;
-  private FakeForwardingDrawable mDrawable;
+  private ForwardingDrawable mDrawable;
 
   @Before
   public void setup() {
     mInnerDrawable = mock(Drawable.class);
-    mDrawable = new FakeForwardingDrawable(mInnerDrawable);
+    mDrawable = new ForwardingDrawable(mInnerDrawable);
     // ForwardingDrawable will call mInnerDrawable.setCallback
     reset(mInnerDrawable);
   }
@@ -43,7 +39,7 @@ public class ForwardingDrawableTest {
   public void testIntrinsicDimensions() {
     when(mInnerDrawable.getIntrinsicWidth()).thenReturn(100);
     when(mInnerDrawable.getIntrinsicHeight()).thenReturn(200);
-    Drawable drawable1 = new FakeForwardingDrawable(mInnerDrawable);
+    Drawable drawable1 = new ForwardingDrawable(mInnerDrawable);
     Assert.assertEquals(100, drawable1.getIntrinsicWidth());
     Assert.assertEquals(200, drawable1.getIntrinsicHeight());
   }
@@ -91,10 +87,27 @@ public class ForwardingDrawableTest {
     verify(mInnerDrawable).draw(mockCanvas);
   }
 
-  static class FakeForwardingDrawable extends ForwardingDrawable {
-    public FakeForwardingDrawable(Drawable drawable) {
-      super(drawable);
-    }
-  }
+  @Test
+  public void testCopyProperties() {
+    Rect rect = new Rect(10, 20, 30, 40);
+    int config = 11;
+    int level = 100;
+    boolean visible = true;
+    int[] stateSet = new int[]{1, 2};
 
+    mDrawable.setBounds(rect);
+    mDrawable.setChangingConfigurations(config);
+    mDrawable.setLevel(level);
+    mDrawable.setVisible(visible, false);
+    mDrawable.setState(stateSet);
+
+    Drawable newDrawable = mock(Drawable.class);
+    mDrawable.setCurrent(newDrawable);
+
+    verify(newDrawable).setBounds(rect);
+    verify(newDrawable).setChangingConfigurations(config);
+    verify(newDrawable).setLevel(level);
+    verify(newDrawable).setVisible(visible, false);
+    verify(newDrawable).setState(stateSet);
+  }
 }

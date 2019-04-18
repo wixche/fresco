@@ -1,22 +1,16 @@
 /*
  * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.common.media;
 
-import javax.annotation.Nullable;
-
+import com.facebook.common.internal.ImmutableMap;
 import java.util.Locale;
 import java.util.Map;
-
-import android.webkit.MimeTypeMap;
-
-import com.facebook.common.internal.ImmutableMap;
+import javax.annotation.Nullable;
 
 /**
  * Utility class.
@@ -25,7 +19,7 @@ public class MediaUtils {
   // Additional mime types that we know to be a particular media type but which may not be
   // supported natively on the device.
   public static final Map<String, String> ADDITIONAL_ALLOWED_MIME_TYPES =
-      ImmutableMap.of("mkv", "video/x-matroska");
+      ImmutableMap.of("mkv", "video/x-matroska", "glb", "model/gltf-binary");
 
   public static boolean isPhoto(@Nullable String mimeType) {
     return mimeType != null && mimeType.startsWith("image/");
@@ -35,13 +29,18 @@ public class MediaUtils {
     return mimeType != null && mimeType.startsWith("video/");
   }
 
+  public static boolean isThreeD(@Nullable String mimeType) {
+    return mimeType != null && mimeType.equals("model/gltf-binary");
+  }
+
   public @Nullable static String extractMime(String path) {
     String extension = extractExtension(path);
     if (extension == null) {
       return null;
     }
+
     extension = extension.toLowerCase(Locale.US);
-    String mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
+    String mimeType = MimeTypeMapWrapper.getMimeTypeFromExtension(extension);
 
     // If we did not find a mime type for the extension specified, check our additional
     // extension/mime-type mappings.

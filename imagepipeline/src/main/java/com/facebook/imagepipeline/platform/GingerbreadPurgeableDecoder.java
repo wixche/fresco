@@ -1,78 +1,76 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 package com.facebook.imagepipeline.platform;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.os.Build;
 import android.os.MemoryFile;
-
-import javax.annotation.Nullable;
-
 import com.facebook.common.internal.ByteStreams;
 import com.facebook.common.internal.Closeables;
 import com.facebook.common.internal.Preconditions;
 import com.facebook.common.internal.Throwables;
+import com.facebook.common.memory.PooledByteBuffer;
+import com.facebook.common.memory.PooledByteBufferInputStream;
 import com.facebook.common.references.CloseableReference;
 import com.facebook.common.streams.LimitedInputStream;
-import com.facebook.imagepipeline.image.EncodedImage;
-import com.facebook.imagepipeline.memory.FlexByteArrayPool;
-import com.facebook.imagepipeline.memory.PooledByteBuffer;
-import com.facebook.imagepipeline.memory.PooledByteBufferInputStream;
-import com.facebook.imagepipeline.nativecode.Bitmaps;
-import com.facebook.imageutils.JfifUtil;
-
+import com.facebook.common.webp.WebpBitmapFactory;
+import com.facebook.common.webp.WebpSupportStatus;
+import com.facebook.imagepipeline.nativecode.DalvikPurgeableDecoder;
 import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
+import javax.annotation.Nullable;
 
 /**
  * Bitmap decoder (Gingerbread to Jelly Bean).
- *
+ * <p/>
  * <p>This copies incoming encoded bytes into a MemoryFile, and then decodes them using a file
  * descriptor, thus avoiding using any Java memory at all. This technique only works in JellyBean
  * and below.
  */
 public class GingerbreadPurgeableDecoder extends DalvikPurgeableDecoder {
+
   private static Method sGetFileDescriptorMethod;
+
+  private final @Nullable WebpBitmapFactory mWebpBitmapFactory;
+
+  public GingerbreadPurgeableDecoder() {
+    super();
+    mWebpBitmapFactory = WebpSupportStatus.loadWebpBitmapFactoryIfExists();
+  }
 
   /**
    * Decodes a byteArray into a purgeable bitmap
    *
    * @param bytesRef the byte buffer that contains the encoded bytes
    * @param options the options passed to the BitmapFactory
-   * @return
+   * @return the decoded bitmap
    */
   @Override
   protected Bitmap decodeByteArrayAsPurgeable(
-      CloseableReference<PooledByteBuffer> bytesRef,
-      BitmapFactory.Options options) {
+      CloseableReference<PooledByteBuffer> bytesRef, BitmapFactory.Options options) {
     return decodeFileDescriptorAsPurgeable(bytesRef, bytesRef.get().size(), null, options);
   }
 
   /**
    * Decodes a byteArray containing jpeg encoded bytes into a purgeable bitmap
    *
-   * <p> Adds a JFIF End-Of-Image marker if needed before decoding.
+   * <p>Adds a JFIF End-Of-Image marker if needed before decoding.
    *
    * @param bytesRef the byte buffer that contains the encoded bytes
    * @param length the length of bytes for decox
    * @param options the options passed to the BitmapFactory
-   * @return
+   * @return the decoded bitmap
    */
   @Override
   protected Bitmap decodeJPEGByteArrayAsPurgeable(
-      CloseableReference<PooledByteBuffer> bytesRef,
-      int length,
-      BitmapFactory.Options options) {
+      CloseableReference<PooledByteBuffer> bytesRef, int length, BitmapFactory.Options options) {
     byte[] suffix = endsWithEOI(bytesRef, length) ? null : EOI;
     return decodeFileDescriptorAsPurgeable(bytesRef, length, suffix, options);
   }
@@ -124,7 +122,7 @@ public class GingerbreadPurgeableDecoder extends DalvikPurgeableDecoder {
     }
   }
 
-  protected Bitmap decodeFileDescriptorAsPurgeable(
+  private Bitmap decodeFileDescriptorAsPurgeable(
       CloseableReference<PooledByteBuffer> bytesRef,
       int inputLength,
       byte[] suffix,
@@ -133,8 +131,12 @@ public class GingerbreadPurgeableDecoder extends DalvikPurgeableDecoder {
     try {
       memoryFile = copyToMemoryFile(bytesRef, inputLength, suffix);
       FileDescriptor fd = getMemoryFileDescriptor(memoryFile);
-      Bitmap bitmap = BitmapFactory.decodeFileDescriptor(fd, null, options);
-      return Preconditions.checkNotNull(bitmap, "BitmapFactory returned null");
+      if (mWebpBitmapFactory != null) {
+        Bitmap bitmap = mWebpBitmapFactory.decodeFileDescriptor(fd, null, options);
+        return Preconditions.checkNotNull(bitmap, "BitmapFactory returned null");
+      } else {
+        throw new IllegalStateException("WebpBitmapFactory is null");
+      }
     } catch (IOException e) {
       throw Throwables.propagate(e);
     } finally {

@@ -4,16 +4,30 @@ project.group = GROUP
 version = VERSION_NAME
 
 dependencies {
-    provided "com.google.code.findbugs:jsr305:${JSR_305_VERSION}"
-    compile project(':drawee')
-    compile project(':fbcore')
-    compile project(':imagepipeline')
+    compileOnly "androidx.legacy:legacy-support-core-utils:${versions.androidx.legacy_support_core_utils}"
+    compileOnly "com.google.code.findbugs:jsr305:${JSR_305_VERSION}"
+
+    implementation "com.facebook.soloader:soloader:${SOLOADER_VERSION}"
+
+    api project(':fbcore')
+    api project(':drawee')
+    api project(':imagepipeline')
+    api project(':native-filters')
+    api project(':native-imagetranscoder')
+
+    testImplementation "junit:junit:${JUNIT_VERSION}"
+    testImplementation "org.mockito:mockito-core:${MOCKITO_CORE_VERSION}"
 }
 apply from: rootProject.file('release.gradle')
 
 android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdkVersion rootProject.ext.compileSdkVersion
+
+    defaultConfig {
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+    }
 
     packagingOptions {
         exclude 'LICENSE'
@@ -22,6 +36,10 @@ android {
         exclude 'META-INF/LICENSE.txt'
         exclude 'META-INF/NOTICE'
         exclude 'META-INF/NOTICE.txt'
+    }
+
+    lintOptions {
+        abortOnError false
     }
 }
 

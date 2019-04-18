@@ -15,12 +15,12 @@ This script builds and runs the comparison app, switching from one library to th
 taking measurements as it goes, and outputs the results neatly.
 
 Due to a bug, you must specify the CPU when running the script.
-Use -c armeabi-v7a for most phones. Use -c armeabi for ARM v5-6 phones, or
--c arm64 for 64-bit ARM devices. Some emulators and tablets will need -c x86.
+Use -c armeabi-v7a for most phones. Use -c arm64 for 64-bit ARM devices. 
+Some emulators and tablets will need -c x86.
 
 To select a subset of the libraries, use the -s option with a
 space-separated list. Available options are fresco, fresco-okhttp,
-glide, volley, drawee-volley, uil, and picasso.
+glide, volley, drawee-volley, uil, picasso, and aquery.
 
 To see the comparison for only network or local images, use -d network or -d local.
 
@@ -56,7 +56,8 @@ TESTS = (
     'picasso',
     'uil',
     'volley',
-    'drawee-volley'
+    'drawee-volley',
+    'aquery',
 )
 
 TEST_SOURCES = (
@@ -66,7 +67,6 @@ TEST_SOURCES = (
 
 ABIS = (
     'arm64-v8a',
-    'armeabi',
     'armeabi-v7a',
     'x86',
     'x86_64'

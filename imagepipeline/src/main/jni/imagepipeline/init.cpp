@@ -1,24 +1,16 @@
 /*
- * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 #include <jni.h>
 
+#include "Bitmaps.h"
 #include "exceptions.h"
-#include "java_globals.h"
 #include "logging.h"
-#include "JpegTranscoder.h"
-#include "WebpTranscoder.h"
-
-jmethodID midInputStreamRead;
-jmethodID midInputStreamSkip;
-jmethodID midOutputStreamWrite;
-jmethodID midOutputStreamWriteWithBounds;
+#include "NativeMemoryChunk.h"
 
 jclass jRuntimeException_class;
 
@@ -32,7 +24,7 @@ jclass jRuntimeException_class;
  * <p> In case of method registration failure a RuntimeException is thrown.
  */
 __attribute__((visibility("default")))
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) {
   JNIEnv* env;
 
   if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
@@ -48,45 +40,20 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
   jRuntimeException_class =
     reinterpret_cast<jclass>(env->NewGlobalRef(runtimeException));
 
-  jclass isClass = env->FindClass("java/io/InputStream");
-  THROW_AND_RETURNVAL_IF(isClass == nullptr, "could not find InputStream", -1);
-
-  jclass osClass = env->FindClass("java/io/OutputStream");
-  THROW_AND_RETURNVAL_IF(osClass == nullptr, "could not find OutputStream", -1);
-
-  // find java methods
-  midInputStreamRead = env->GetMethodID(isClass, "read", "([B)I");
-  THROW_AND_RETURNVAL_IF(
-      midInputStreamRead == nullptr,
-      "failed to register InputStream.read",
-      -1);
-
-  midInputStreamSkip = env->GetMethodID(isClass, "skip", "(J)J");
-  THROW_AND_RETURNVAL_IF(
-      midInputStreamSkip == nullptr,
-      "failed to register InputStream.skip",
-      -1);
-
-  midOutputStreamWrite = env->GetMethodID(osClass, "write", "([B)V");
-  THROW_AND_RETURNVAL_IF(
-      midOutputStreamWrite == nullptr,
-      "failed to register OutputStream.write",
-      -1);
-
-  midOutputStreamWriteWithBounds = env->GetMethodID(osClass, "write", "([BII)V");
-  THROW_AND_RETURNVAL_IF(
-      midOutputStreamWriteWithBounds == nullptr,
-      "failed to register OutputStream.write",
-      -1);
-
   // register native methods
   THROW_AND_RETURNVAL_IF(
-      !registerJpegTranscoderMethods(env),
-      "Could not register JpegTranscoder methods",
+      registerBitmapsMethods(env) == JNI_ERR,
+      "Could not register Bitmaps methods",
       -1);
+
   THROW_AND_RETURNVAL_IF(
-      !registerWebpTranscoderMethods(env),
-      "Could not register WebpTranscoderMethods",
+      registerDalvikDecoderMethods(env) == JNI_ERR,
+      "Could not register DalvikPurgeableDecoder methods",
+      -1);
+
+  THROW_AND_RETURNVAL_IF(
+      registerNativeMemoryChunkMethods(env) == JNI_ERR,
+      "Could not register NativeMemoryChunk methods",
       -1);
 
   return JNI_VERSION_1_6;
